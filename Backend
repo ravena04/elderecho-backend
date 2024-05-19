@@ -1,0 +1,55 @@
+from flask import Flask, render_template, request, redirect, url_for
+from apscheduler.schedulers.background import BackgroundScheduler
+import sqlite3
+import datetime
+
+app = Flask(_name_)
+scheduler = BackgroundScheduler()
+scheduler.start()
+
+def init_db():
+    with sqlite3.connect('database.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS reminders
+                          (id INTEGER PRIMARY KEY, time TEXT, message TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS appointments
+                          (id INTEGER PRIMARY KEY, date TEXT, description TEXT)''')
+        conn.commit()
+
+@app.route('/')
+def index():
+    with sqlite3.connect('database.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('SELECT * FROM reminders')
+        reminders = cursor.fetchall()
+        cursor.execute('SELECT * FROM appointments')
+        appointments = cursor.fetchall()
+    return render_template('index.html', reminders=reminders, appointments=appointments)
+
+@app.route('/add_reminder', methods=['POST'])
+def add_reminder():
+    time = request.form['time']
+    message = request.form['message']
+    with sqlite3.connect('database.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO reminders (time, message) VALUES (?, ?)', (time, message))
+        conn.commit()
+    scheduler.add_job(func=print_reminder, trigger='date', run_date=time, args=[message])
+    return redirect(url_for('index'))
+
+@app.route('/add_appointment', methods=['POST'])
+def add_appointment():
+    date = request.form['date']
+    description = request.form['description']
+    with sqlite3.connect('database.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO appointments (date, description) VALUES (?, ?)', (date, description))
+        conn.commit()
+    return redirect(url_for('index'))
+
+def print_reminder(message):
+    print(f"Reminder: {message}")
+
+if _name_ == '_main_':
+    init_db()
+    app.run(debug=True)
